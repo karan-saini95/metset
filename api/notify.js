@@ -1,7 +1,4 @@
-const { Redis } = require("@upstash/redis");
 const webpush = require("web-push");
-
-const redis = Redis.fromEnv();
 
 webpush.setVapidDetails(
   process.env.VAPID_SUBJECT,
@@ -9,13 +6,18 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-module.exports = async function handler(req, res) {
-  const subRaw = await redis.get("push_subscription");
-  const medsRaw = await redis.get("medicines");
-  if (!subRaw || !medsRaw) return res.status(200).json({ skipped: "no data" });
+async function kvGet(key) {
+  const res = await fetch(`${process.env.KV_REST_API_URL}/get/${key}`, {
+    headers: { Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}` }
+  });
+  const data = await res.json();
+  return data.result ? JSON.parse(data.result) : null;
+}
 
-  const subscription = typeof subRaw === "string" ? JSON.parse(subRaw) : subRaw;
-  const medicines = typeof medsRaw === "string" ? JSON.parse(medsRaw) : medsRaw;
+module.exports = async function handler(req, res) {
+  const subscription = await kvGet("push_subscription");
+  const medicines = await kvGet("medicines");
+  if (!subscription || !medicines) return res.status(200).json({ skipped: "no data" });
 
   const now = new Date();
   const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
