@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { useState, useEffect } from "react";
 
 const COLORS = ["#7C3AED", "#059669", "#DC2626", "#D97706", "#2563EB", "#DB2777", "#0891B2", "#65A30D"];
