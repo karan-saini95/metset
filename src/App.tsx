@@ -1,9 +1,4 @@
-// @ts-nocheck
 
-// Force re-subscribe
-const existingReg = await navigator.serviceWorker.ready;
-const existingSub = await existingReg.pushManager.getSubscription();
-if (existingSub) await existingSub.unsubscribe();
 // @ts-nocheck
 import { useState, useEffect } from "react";
 
