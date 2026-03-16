@@ -1,5 +1,5 @@
-import { Redis } from "@upstash/redis";
-import webpush from "web-push";
+const { Redis } = require("@upstash/redis");
+const webpush = require("web-push");
 
 const redis = Redis.fromEnv();
 
@@ -9,7 +9,7 @@ webpush.setVapidDetails(
   process.env.VAPID_PRIVATE_KEY
 );
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const subRaw = await redis.get("push_subscription");
   const medsRaw = await redis.get("medicines");
   if (!subRaw || !medsRaw) return res.status(200).json({ skipped: "no data" });
@@ -40,4 +40,4 @@ export default async function handler(req, res) {
   }
 
   res.status(200).json({ sent: due.length });
-}
+};
