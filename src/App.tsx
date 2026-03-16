@@ -1,10 +1,11 @@
-// @ts-nocheck
 
+// @ts-nocheck
 import { useState, useEffect } from "react";
 
 const COLORS = ["#7C3AED","#059669","#DC2626","#D97706","#2563EB","#DB2777","#0891B2","#65A30D"];
 const DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const DAYS_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const VAPID_PUBLIC_KEY = "BMlu_ELzL3LFaw4BAHU3zEZOCKPIRpTSLdz7U94fdOa57_tFn4cCjYxvhfI5A3oaOEi2C9toDyIsPwL43nZpKM8";
 
 function getToday() { return new Date().toISOString().split("T")[0]; }
 function formatDate(d) {
@@ -97,58 +98,25 @@ function generateTodayLogs(medicines, existingLogs) {
   return newLogs;
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
 const defaultMeds = [
   {id:"med1",name:"Metformin",dose:"500mg",times:["08:00","21:00"],color:"#7C3AED",pillsRemaining:24,frequency:"daily",weekDay:0,createdAt:"2026-03-15"},
   {id:"med2",name:"Vitamin D",dose:"1000IU",times:["13:00"],color:"#059669",pillsRemaining:30,frequency:"daily",weekDay:0,createdAt:"2026-03-15"}
 ];
 const emptyForm={name:"",dose:"",time:"",color:COLORS[0],pills:"",frequency:"daily",weekDay:new Date().getDay()};
 
-// ─── Notification helpers ───────────────────────────────────────────────────
-
 function getNotifStatus() {
   if (!("Notification" in window)) return "unsupported";
-  return Notification.permission; // "default" | "granted" | "denied"
+  return Notification.permission;
 }
-
-async function requestNotifPermission() {
-  if (!("Notification" in window)) return "unsupported";
-  const result = await Notification.requestPermission();
-  return result;
-}
-
-// Schedule a local notification via setTimeout (works while app is open / in background on iOS PWA)
-// For true background push we'd need a server — this is the frontend-only approach
-function scheduleLocalReminders(medicines) {
-  // Clear any previously scheduled timers stored in window
-  if (window._notifTimers) window._notifTimers.forEach(t => clearTimeout(t));
-  window._notifTimers = [];
-
-  if (Notification.permission !== "granted") return;
-
-  const now = new Date();
-  const today = getToday();
-
-  medicines.forEach(med => {
-    if (!isScheduledOn(med, today)) return;
-    med.times.forEach(timeStr => {
-      const [h, m] = timeStr.split(":").map(Number);
-      const fireAt = new Date(today + "T00:00:00");
-      fireAt.setHours(h, m, 0, 0);
-      const msUntil = fireAt - now;
-      if (msUntil < 0) return; // already passed today
-      const timer = setTimeout(() => {
-        new Notification(`💊 Time for ${med.name}`, {
-          body: `${med.dose} — tap to open MediTrack`,
-          icon: "/favicon.svg",
-          tag: `${med.id}-${timeStr}`,
-        });
-      }, msUntil);
-      window._notifTimers.push(timer);
-    });
-  });
-}
-
-// ───────────────────────────────────────────────────────────────────────────
 
 export default function App() {
   const [tab, setTab] = useState("today");
@@ -165,6 +133,7 @@ export default function App() {
   const [notifLeadMins, setNotifLeadMins] = useState(() => parseInt(localStorage.getItem("medi_lead_mins")) || 0);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifTestSent, setNotifTestSent] = useState(false);
+  const [notifError, setNotifError] = useState(null);
 
   useEffect(() => {
     const updated = generateTodayLogs(medicines, logs);
@@ -172,11 +141,6 @@ export default function App() {
   }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_medicines", JSON.stringify(medicines)); }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_logs", JSON.stringify(logs)); }, [logs]);
-
-  // Re-schedule whenever medicines or lead time changes
-  useEffect(() => {
-    if (notifStatus === "granted") scheduleLocalReminders(medicines);
-  }, [medicines, notifStatus, notifLeadMins]);
 
   const today = getToday();
   const todayLogs = logs
@@ -215,7 +179,6 @@ export default function App() {
     if (exists) setLogs(logs.map(l=>l.id===logId?{...l,status:"taken",takenAt:new Date().toISOString()}:l));
     else setLogs([...logs,{id:logId,medicineId,scheduledAt,status:"taken",takenAt:new Date().toISOString()}]);
   }
-
   function startEdit(med) {
     setForm({name:med.name,dose:med.dose,time:med.times[0],color:med.color,pills:med.pillsRemaining,frequency:med.frequency,weekDay:med.weekDay});
     setEditingId(med.id); setShowForm(true);
@@ -231,6 +194,8 @@ export default function App() {
       setLogs(generateTodayLogs([med],logs));
     }
     setForm(emptyForm); setShowForm(false);
+    // Re-sync medicines to server if notifications are enabled
+    if (notifStatus === "granted") syncMedicinesToServer(medicines);
   }
   function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
   function deleteMedicine(id) {
@@ -247,12 +212,52 @@ export default function App() {
     return d.toLocaleDateString("en-US",{weekday:"long"});
   }
 
+  async function syncMedicinesToServer(meds) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) return;
+      await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON(), medicines: meds })
+      });
+    } catch(e) { console.log("Sync failed", e); }
+  }
+
   async function handleEnableNotifs() {
     setNotifLoading(true);
-    const result = await requestNotifPermission();
-    setNotifStatus(result);
+    setNotifError(null);
+    try {
+      // 1. Ask for notification permission
+      const permission = await Notification.requestPermission();
+      setNotifStatus(permission);
+      if (permission !== "granted") { setNotifLoading(false); return; }
+
+      // 2. Register service worker
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+
+      // 3. Subscribe to push
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+
+      // 4. Send subscription + medicines to server
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
+      });
+
+      if (!res.ok) throw new Error("Server error");
+
+    } catch(e) {
+      setNotifError("Something went wrong: " + e.message);
+      console.error(e);
+    }
     setNotifLoading(false);
-    if (result === "granted") scheduleLocalReminders(medicines);
   }
 
   function handleTestNotif() {
@@ -272,14 +277,13 @@ export default function App() {
 
   const s = styles;
 
-  // ─── Notification status card content ──────────────────────────────────
   function NotifStatusCard() {
     if (notifStatus === "unsupported") return (
       <div style={{...s.notifCard, borderColor:"#FCA5A5", background:"#FFF5F5"}}>
         <span style={{fontSize:28}}>😔</span>
         <div style={{flex:1}}>
           <p style={{...s.notifCardTitle, color:"#DC2626"}}>Not supported</p>
-          <p style={s.notifCardBody}>Your browser doesn't support notifications. To get reminders, open this app in Safari on iPhone and install it via "Add to Home Screen".</p>
+          <p style={s.notifCardBody}>Open this app in Safari on iPhone and install it via "Add to Home Screen" first, then come back to enable notifications.</p>
         </div>
       </div>
     );
@@ -288,7 +292,7 @@ export default function App() {
         <span style={{fontSize:28}}>🚫</span>
         <div style={{flex:1}}>
           <p style={{...s.notifCardTitle, color:"#DC2626"}}>Notifications blocked</p>
-          <p style={s.notifCardBody}>You've blocked notifications for this app. To fix it: go to iPhone <strong>Settings → Safari → [this site] → Notifications → Allow</strong>.</p>
+          <p style={s.notifCardBody}>Go to iPhone <strong>Settings → Safari → this site → Notifications → Allow</strong>, then come back here.</p>
         </div>
       </div>
     );
@@ -296,23 +300,21 @@ export default function App() {
       <div style={{...s.notifCard, borderColor:"#6EE7B7", background:"#F0FDF4"}}>
         <span style={{fontSize:28}}>✅</span>
         <div style={{flex:1}}>
-          <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications on!</p>
-          <p style={s.notifCardBody}>MediTrack will remind Ambika at each dose time while the app is open. For background reminders, a server is needed — coming next.</p>
-          <button style={s.testBtn} onClick={handleTestNotif}>
-            {notifTestSent ? "✓ Sent!" : "Send a test notification"}
-          </button>
+          <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
+          <p style={s.notifCardBody}>Ambika will get a push notification for every dose — even when the phone is locked. 🎉</p>
+          <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
         </div>
       </div>
     );
-    // default = "default" (not yet asked)
     return (
       <div style={{...s.notifCard, borderColor:"#C4B5FD", background:"#FAF5FF"}}>
         <span style={{fontSize:28}}>🔔</span>
         <div style={{flex:1}}>
           <p style={s.notifCardTitle}>Enable reminders</p>
-          <p style={s.notifCardBody}>Get notified at each dose time so Ambika never misses a medicine. Tap below to allow notifications.</p>
+          <p style={s.notifCardBody}>Get notified at each dose time so Ambika never misses a medicine.</p>
+          {notifError && <p style={{fontSize:12,color:"#DC2626",marginBottom:8}}>{notifError}</p>}
           <button style={s.enableBtn} onClick={handleEnableNotifs} disabled={notifLoading}>
-            {notifLoading ? "Requesting…" : "Enable notifications"}
+            {notifLoading ? "Setting up…" : "Enable notifications"}
           </button>
         </div>
       </div>
@@ -323,7 +325,6 @@ export default function App() {
     <div style={s.app}>
       <div style={s.screen}>
 
-        {/* ── TODAY ── */}
         {tab==="today" && (
           <div style={s.scrollArea}>
             <div style={s.hero}>
@@ -399,7 +400,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── MEDS ── */}
         {tab==="meds"&&(
           <div style={s.scrollArea}>
             <div style={s.medsHeader}>
@@ -468,7 +468,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── HISTORY ── */}
         {tab==="hist"&&(
           <div style={s.scrollArea}>
             <div style={s.histHero}>
@@ -510,7 +509,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ── SETTINGS ── */}
         {tab==="settings"&&(
           <div style={s.scrollArea}>
             <div style={s.settingsHero}>
@@ -518,14 +516,8 @@ export default function App() {
               <p style={s.heroGreeting}>Preferences</p>
               <p style={s.heroName}>Settings ⚙️</p>
             </div>
-
-            {/* Notifications section */}
             <p style={s.sectionLabel}>🔔 Notifications</p>
-            <div style={s.settingsCard}>
-              <NotifStatusCard/>
-            </div>
-
-            {/* Lead time — only shown if granted */}
+            <div style={s.settingsCard}><NotifStatusCard/></div>
             {notifStatus==="granted"&&(
               <div style={s.settingsCard}>
                 <p style={s.settingsCardTitle}>⏱ Remind me how early?</p>
@@ -537,8 +529,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {/* How notifications work */}
             <p style={s.sectionLabel}>ℹ️ How it works</p>
             <div style={s.settingsCard}>
               <div style={s.howItWorksRow}>
@@ -551,31 +541,25 @@ export default function App() {
                 <div style={s.howStep}>
                   <div style={{...s.howIcon,background:"#D1FAE5"}}>🔔</div>
                   <p style={s.howLabel}>Allow notifications</p>
-                  <p style={s.howSub}>Tap Enable above when prompted</p>
+                  <p style={s.howSub}>Tap Enable above</p>
                 </div>
                 <div style={s.howArrow}>→</div>
                 <div style={s.howStep}>
                   <div style={{...s.howIcon,background:"#FEF3C7"}}>⏰</div>
                   <p style={s.howLabel}>Get reminders</p>
-                  <p style={s.howSub}>A pop-up at each dose time</p>
+                  <p style={s.howSub}>Every dose, every day</p>
                 </div>
               </div>
-              <div style={s.infoBox}>
-                <p style={s.infoText}>💡 <strong>Note:</strong> Right now reminders only fire while the app is open. Full background push notifications (even when the phone is locked) need a small server — that's the next step we'll build together.</p>
-              </div>
             </div>
-
-            {/* About */}
             <p style={s.sectionLabel}>💜 About</p>
             <div style={s.settingsCard}>
               <p style={s.aboutTitle}>MediTrack</p>
               <p style={s.aboutSub}>Made with love for Ambika 💊✨</p>
-              <p style={s.aboutSub}>All data is stored privately on this device — nothing is sent anywhere.</p>
+              <p style={s.aboutSub}>All data is stored privately on this device.</p>
             </div>
           </div>
         )}
 
-        {/* ── TAB BAR ── */}
         <div style={s.tabBar}>
           {[
             {id:"today",label:"Today",icon:"📋"},
@@ -668,7 +652,6 @@ const styles = {
   pctBadge:{padding:"4px 10px",borderRadius:20,fontSize:13,fontWeight:700},
   barBg:{height:6,background:"#EDE9FE",borderRadius:99},
   barFill:{height:6,borderRadius:99,transition:"width 0.5s"},
-  // Settings
   settingsHero:{background:"linear-gradient(135deg,#7C3AED 0%,#DB2777 100%)",padding:"36px 20px 28px",position:"relative",overflow:"hidden"},
   settingsCard:{background:"#fff",borderRadius:14,margin:"0 16px 12px",padding:16,boxShadow:"0 2px 10px rgba(124,58,237,0.08)"},
   settingsCardTitle:{fontSize:15,fontWeight:600,color:"#1a1a1a",margin:"0 0 4px"},
@@ -687,8 +670,6 @@ const styles = {
   howLabel:{fontSize:12,fontWeight:600,color:"#1a1a1a",margin:"0 0 2px"},
   howSub:{fontSize:10,color:"#9CA3AF",margin:0,lineHeight:1.4},
   howArrow:{fontSize:16,color:"#C4B5FD",paddingTop:12},
-  infoBox:{background:"#FAF5FF",borderRadius:10,padding:12,border:"1px solid #ede9fe"},
-  infoText:{fontSize:12,color:"#6B7280",margin:0,lineHeight:1.6},
   aboutTitle:{fontSize:18,fontWeight:700,color:"#7C3AED",margin:"0 0 4px"},
   aboutSub:{fontSize:13,color:"#9CA3AF",margin:"0 0 4px"},
   tabBar:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,height:68,background:"#fff",borderTop:"1px solid #ede9fe",display:"flex",boxShadow:"0 -4px 20px rgba(124,58,237,0.1)"},
