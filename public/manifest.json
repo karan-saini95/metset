@@ -1,0 +1,18 @@
+{
+  "name": "MediTrack",
+  "short_name": "MediTrack",
+  "description": "Medicine tracker for Ambika",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF5FF",
+  "theme_color": "#7C3AED",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
