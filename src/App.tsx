@@ -217,7 +217,7 @@ export default function App() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (!sub) return;
-      await fetch("/api/subscribe", {
+      await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON(), medicines: meds })
@@ -245,7 +245,7 @@ export default function App() {
       });
 
       // 4. Send subscription + medicines to server
-      const res = await fetch("/api/subscribe", {
+      const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON(), medicines })
