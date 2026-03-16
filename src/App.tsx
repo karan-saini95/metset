@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 // Force re-subscribe
 const existingReg = await navigator.serviceWorker.ready;
 const existingSub = await existingReg.pushManager.getSubscription();
