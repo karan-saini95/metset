@@ -327,9 +327,8 @@ export default function App() {
       Sync subscription to server
     </button>
   </div>
-</div></div>
 </div>
-    );
+);
     return (
       <div style={{...s.notifCard, borderColor:"#C4B5FD", background:"#FAF5FF"}}>
         <span style={{fontSize:28}}>🔔</span>
