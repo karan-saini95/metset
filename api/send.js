@@ -17,8 +17,8 @@ module.exports = async function handler(req, res) {
     }
 
     const subscription = JSON.parse(subData.result);
-    const medicines = JSON.parse(medsData.result);
-
+    const medicines = typeof medsData.result === "string" ? JSON.parse(medsData.result) : medsData.result;
+const medsArray = Array.isArray(medicines) ? medicines : JSON.parse(medicines);
     const now = new Date();
     const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     const dow = now.getDay();
