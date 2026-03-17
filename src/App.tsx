@@ -202,8 +202,12 @@ useEffect(() => {
     }
     setForm(emptyForm); setShowForm(false);
     // Re-sync medicines to server if notifications are enabled
-    if (notifStatus === "granted") syncMedicinesToServer(medicines);
-  }
+  if (notifStatus === "granted") syncMedicinesToServer(medicines);
+    fetch("/api/update", {
+      method: "POST", 
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ medicines })
+    });  }
   function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
   function deleteMedicine(id) {
     setMedicines(medicines.filter(m=>m.id!==id));
