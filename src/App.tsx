@@ -295,8 +295,15 @@ export default function App() {
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
-      });
+        body: JSON.stringify({ 
+  subscription: sub.toJSON(), 
+  medicines,
+  deviceId: localStorage.getItem("medi_device_id") || (() => {
+    const id = crypto.randomUUID();
+    localStorage.setItem("medi_device_id", id);
+    return id;
+  })()
+})      });
       if (!res.ok) throw new Error("Server error");
     } catch(e) {
       setNotifError("Something went wrong: " + e.message);
