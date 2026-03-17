@@ -204,15 +204,17 @@ useEffect(() => {
         ? medicines.map(m => m.id===editingId ? {...m,name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||m.pillsRemaining,frequency:form.frequency,weekDay:parseInt(form.weekDay)} : m)
         : [...medicines, {id:crypto.randomUUID(),name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||30,frequency:form.frequency,weekDay:parseInt(form.weekDay),createdAt:getToday()}];
 
-      if (editingId) {
-        setMedicines(updatedMedicinesList);
-        setEditingId(null);
-      } else {
-        const med = updatedMedicinesList[updatedMedicinesList.length-1];
-        setMedicines(updatedMedicinesList);
-        setLogs(generateTodayLogs([med],logs));
-      }
-      setForm(emptyForm); setShowForm(false);
+if (editingId) {
+  const today = getToday();
+  setLogs(logs.filter(l => !(l.medicineId === editingId && l.scheduledAt.startsWith(today))));
+  setMedicines(updatedMedicinesList);
+  setEditingId(null);
+} else {
+  const med = updatedMedicinesList[updatedMedicinesList.length-1];
+  setMedicines(updatedMedicinesList);
+  setLogs(generateTodayLogs([med],logs));
+}
+setForm(emptyForm); setShowForm(false);
 
       
     }  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
