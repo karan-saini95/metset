@@ -190,25 +190,31 @@ useEffect(() => {
     setForm({name:med.name,dose:med.dose,time:med.times[0],color:med.color,pills:med.pillsRemaining,frequency:med.frequency,weekDay:med.weekDay});
     setEditingId(med.id); setShowForm(true);
   }
-  function saveMedicine() {
-    if (!form.name||!form.time) return;
-    if (editingId) {
-      setMedicines(medicines.map(m=>m.id===editingId?{...m,name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||m.pillsRemaining,frequency:form.frequency,weekDay:parseInt(form.weekDay)}:m));
-      setEditingId(null);
-    } else {
-      const med={id:crypto.randomUUID(),name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||30,frequency:form.frequency,weekDay:parseInt(form.weekDay),createdAt:getToday()};
-      setMedicines([...medicines,med]);
-      setLogs(generateTodayLogs([med],logs));
-    }
-    setForm(emptyForm); setShowForm(false);
-    // Re-sync medicines to server if notifications are enabled
-  if (notifStatus === "granted") syncMedicinesToServer(medicines);
-    fetch("/api/update", {
-      method: "POST", 
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ medicines })
-    });  }
-  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
+ function saveMedicine() {
+      if (!form.name||!form.time) return;
+      
+      // Build updated list first (before setState which is async)
+      const updatedMedicinesList = editingId
+        ? medicines.map(m => m.id===editingId ? {...m,name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||m.pillsRemaining,frequency:form.frequency,weekDay:parseInt(form.weekDay)} : m)
+        : [...medicines, {id:crypto.randomUUID(),name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||30,frequency:form.frequency,weekDay:parseInt(form.weekDay),createdAt:getToday()}];
+
+      if (editingId) {
+        setMedicines(updatedMedicinesList);
+        setEditingId(null);
+      } else {
+        const med = updatedMedicinesList[updatedMedicinesList.length-1];
+        setMedicines(updatedMedicinesList);
+        setLogs(generateTodayLogs([med],logs));
+      }
+      setForm(emptyForm); setShowForm(false);
+
+      // Sync to server using freshly computed list
+      fetch("/api/update", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ medicines: updatedMedicinesList })
+      });
+    }  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
   function deleteMedicine(id) {
     setMedicines(medicines.filter(m=>m.id!==id));
     setLogs(logs.filter(l=>l.medicineId!==id));
