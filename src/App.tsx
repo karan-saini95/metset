@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import { useState, useEffect } from "react";
 
@@ -108,10 +107,10 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 const defaultMeds = [
-  {id:"med1",name:"Metformin",dose:"500mg",times:["08:00","21:00"],color:"#7C3AED",pillsRemaining:24,frequency:"daily",weekDay:0,createdAt:"2026-03-15"},
-  {id:"med2",name:"Vitamin D",dose:"1000IU",times:["13:00"],color:"#059669",pillsRemaining:30,frequency:"daily",weekDay:0,createdAt:"2026-03-15"}
+  {id:"med1",name:"Metformin",dose:"500mg",times:["08:00","21:00"],color:"#7C3AED",frequency:"daily",weekDay:0,createdAt:"2026-03-15"},
+  {id:"med2",name:"Vitamin D",dose:"1000IU",times:["13:00"],color:"#059669",frequency:"daily",weekDay:0,createdAt:"2026-03-15"}
 ];
-const emptyForm={name:"",dose:"",time:"",color:COLORS[0],pills:"",frequency:"daily",weekDay:new Date().getDay()};
+const emptyForm={name:"",dose:"",time:"",color:COLORS[0],frequency:"daily",weekDay:new Date().getDay()};
 
 function getNotifStatus() {
   if (!("Notification" in window)) return "unsupported";
@@ -129,6 +128,7 @@ export default function App() {
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [userName, setUserName] = useState(() => localStorage.getItem("medi_name") || "Ambika");
   const [notifStatus, setNotifStatus] = useState(getNotifStatus);
   const [notifLeadMins, setNotifLeadMins] = useState(() => parseInt(localStorage.getItem("medi_lead_mins")) || 0);
   const [notifLoading, setNotifLoading] = useState(false);
@@ -141,20 +141,21 @@ export default function App() {
   }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_medicines", JSON.stringify(medicines)); }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_logs", JSON.stringify(logs)); }, [logs]);
-useEffect(() => {
-  fetch("/api/update", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ medicines })
-  });
-}, [medicines]);
-useEffect(() => {
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js")
-      .then(reg => console.log("SW registered", reg))
-      .catch(err => console.log("SW failed", err));
-  }
-}, []);
+  useEffect(() => {
+    fetch("/api/update", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ medicines })
+    });
+  }, [medicines]);
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js")
+        .then(reg => console.log("SW registered", reg))
+        .catch(err => console.log("SW failed", err));
+    }
+  }, []);
+
   const today = getToday();
   const todayLogs = logs
     .filter(l => l.scheduledAt.startsWith(today))
@@ -193,31 +194,27 @@ useEffect(() => {
     else setLogs([...logs,{id:logId,medicineId,scheduledAt,status:"taken",takenAt:new Date().toISOString()}]);
   }
   function startEdit(med) {
-    setForm({name:med.name,dose:med.dose,time:med.times[0],color:med.color,pills:med.pillsRemaining,frequency:med.frequency,weekDay:med.weekDay});
+    setForm({name:med.name,dose:med.dose,time:med.times[0],color:med.color,frequency:med.frequency,weekDay:med.weekDay});
     setEditingId(med.id); setShowForm(true);
   }
- function saveMedicine() {
-      if (!form.name||!form.time) return;
-      
-      // Build updated list first (before setState which is async)
-      const updatedMedicinesList = editingId
-        ? medicines.map(m => m.id===editingId ? {...m,name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||m.pillsRemaining,frequency:form.frequency,weekDay:parseInt(form.weekDay)} : m)
-        : [...medicines, {id:crypto.randomUUID(),name:form.name,dose:form.dose,times:[form.time],color:form.color,pillsRemaining:parseInt(form.pills)||30,frequency:form.frequency,weekDay:parseInt(form.weekDay),createdAt:getToday()}];
-
-if (editingId) {
-  const today = getToday();
-  setLogs(logs.filter(l => !(l.medicineId === editingId && l.scheduledAt.startsWith(today))));
-  setMedicines(updatedMedicinesList);
-  setEditingId(null);
-} else {
-  const med = updatedMedicinesList[updatedMedicinesList.length-1];
-  setMedicines(updatedMedicinesList);
-  setLogs(generateTodayLogs([med],logs));
-}
-setForm(emptyForm); setShowForm(false);
-
-      
-    }  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
+  function saveMedicine() {
+    if (!form.name||!form.time) return;
+    const updatedMedicinesList = editingId
+      ? medicines.map(m => m.id===editingId ? {...m,name:form.name,dose:form.dose,times:[form.time],color:form.color,frequency:form.frequency,weekDay:parseInt(form.weekDay)} : m)
+      : [...medicines, {id:crypto.randomUUID(),name:form.name,dose:form.dose,times:[form.time],color:form.color,frequency:form.frequency,weekDay:parseInt(form.weekDay),createdAt:getToday()}];
+    if (editingId) {
+      const today = getToday();
+      setLogs(logs.filter(l => !(l.medicineId === editingId && l.scheduledAt.startsWith(today))));
+      setMedicines(updatedMedicinesList);
+      setEditingId(null);
+    } else {
+      const med = updatedMedicinesList[updatedMedicinesList.length-1];
+      setMedicines(updatedMedicinesList);
+      setLogs(generateTodayLogs([med],logs));
+    }
+    setForm(emptyForm); setShowForm(false);
+  }
+  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
   function deleteMedicine(id) {
     setMedicines(medicines.filter(m=>m.id!==id));
     setLogs(logs.filter(l=>l.medicineId!==id));
@@ -249,30 +246,21 @@ setForm(emptyForm); setShowForm(false);
     setNotifLoading(true);
     setNotifError(null);
     try {
-      // 1. Ask for notification permission
       const permission = await Notification.requestPermission();
       setNotifStatus(permission);
       if (permission !== "granted") { setNotifLoading(false); return; }
-
-      // 2. Register service worker
       const reg = await navigator.serviceWorker.register("/sw.js");
       await navigator.serviceWorker.ready;
-
-      // 3. Subscribe to push
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
-
-      // 4. Send subscription + medicines to server
       const res = await fetch("/api/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription: sub.toJSON(), medicines })
       });
-
       if (!res.ok) throw new Error("Server error");
-
     } catch(e) {
       setNotifError("Something went wrong: " + e.message);
       console.error(e);
@@ -317,52 +305,24 @@ setForm(emptyForm); setShowForm(false);
       </div>
     );
     if (notifStatus === "granted") return (
- <div style={{...s.notifCard, borderColor:"#6EE7B7", background:"#F0FDF4"}}>
-  <span style={{fontSize:28}}>✅</span>
-  <div style={{flex:1}}>
-    <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
-   <p style={s.notifCardBody}>Ambika will get a push notification for every dose - even when the phone is locked. 🎉</p>
-    <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
-    <button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
-      onClick={async () => {
-<button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
-  onClick={async () => {
-    try {
-      alert("Step 1: registering SW...");
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      alert("Step 2: getting subscription...");
-      const sub = await reg.pushManager.getSubscription();
-      if (!sub) { alert("No subscription - need to re-enable notifications"); return; }
-      alert("Step 3: sending to server...");
-      const res = await fetch("/api/save", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
-      });
-      alert("Step 4: status " + res.status);
-      const data = await res.json();
-      alert("Done: " + JSON.stringify(data));
-    } catch(e) {
-      alert("Error: " + e.message);
-    }
-  }}>
-  Sync subscription to server
-</button>
-      }}>
-      Sync subscription to server
-    </button>
-  </div>
-</div>
-);
+      <div style={{...s.notifCard, borderColor:"#6EE7B7", background:"#F0FDF4"}}>
+        <span style={{fontSize:28}}>✅</span>
+        <div style={{flex:1}}>
+          <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
+          <p style={s.notifCardBody}>You will get a push notification for every dose - even when the phone is locked. 🎉</p>
+          <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
+        </div>
+      </div>
+    );
     return (
       <div style={{...s.notifCard, borderColor:"#C4B5FD", background:"#FAF5FF"}}>
         <span style={{fontSize:28}}>🔔</span>
         <div style={{flex:1}}>
           <p style={s.notifCardTitle}>Enable reminders</p>
-          <p style={s.notifCardBody}>Get notified at each dose time so Ambika never misses a medicine.</p>
+          <p style={s.notifCardBody}>Get notified at each dose time so you never miss a medicine.</p>
           {notifError && <p style={{fontSize:12,color:"#DC2626",marginBottom:8}}>{notifError}</p>}
           <button style={s.enableBtn} onClick={handleEnableNotifs} disabled={notifLoading}>
-            {notifLoading ? "Setting up…" : "Enable notifications"}
+            {notifLoading ? "Setting up..." : "Enable notifications"}
           </button>
         </div>
       </div>
@@ -378,7 +338,7 @@ setForm(emptyForm); setShowForm(false);
             <div style={s.hero}>
               <div style={s.heroGlow}/>
               <p style={s.heroGreeting}>{getGreeting()}</p>
-              <p style={s.heroName}>Ambika ✨</p>
+              <p style={s.heroName}>{userName} ✨</p>
               <p style={s.heroDate}>{formatDate(today)}</p>
               {streak>0 && <div style={s.streakPill}>🔥 {streak}-day streak!</div>}
             </div>
@@ -437,7 +397,7 @@ setForm(emptyForm); setShowForm(false);
                       <div style={s.doseInfo}>
                         <p style={s.doseName}>{med.name}</p>
                         <p style={s.doseDose}>{med.dose} · {offsetLabel(item.offset)} at {to12h(item.time)}</p>
-                        <p style={{...s.doseStatus,color:isMissed?"#EF4444":isTaken?"#059669":"#7C3AED"}}>{isTaken?`✓ Taken at ${takenTime}`:isMissed?"Missed — tap to log it":"Upcoming"}</p>
+                        <p style={{...s.doseStatus,color:isMissed?"#EF4444":isTaken?"#059669":"#7C3AED"}}>{isTaken?`✓ Taken at ${takenTime}`:isMissed?"Missed - tap to log it":"Upcoming"}</p>
                       </div>
                       {(isDue||isMissed)&&<button style={{...s.markBtn,background:isMissed?"#6B7280":med.color}} onClick={()=>markTaken(item.id,item.scheduledAt,item.medicineId)}>{isMissed?"Log it":"Mark taken"}</button>}
                     </div>
@@ -481,7 +441,6 @@ setForm(emptyForm); setShowForm(false);
                     </div>
                   </div>
                 )}
-                <input style={s.input} placeholder="Pills remaining" type="number" value={form.pills} onChange={e=>setForm({...form,pills:e.target.value})}/>
                 <div>
                   <p style={s.fieldLabel}>Colour</p>
                   <div style={s.colorRow}>
@@ -505,10 +464,6 @@ setForm(emptyForm); setShowForm(false);
                     <p style={{...s.medDetails,marginTop:2}}>{freqLabel(med)}</p>
                   </div>
                   <button style={{...s.editBtn,borderColor:med.color,color:med.color}} onClick={()=>{setShowForm(true);startEdit(med);}}>Edit</button>
-                </div>
-                <div style={s.medCardBottom}>
-                  <span style={s.pillCount}>💉 {med.pillsRemaining} pills left</span>
-                  <span style={s.pillCount}>~{med.pillsRemaining} days</span>
                 </div>
               </div>
             ))}
@@ -602,7 +557,10 @@ setForm(emptyForm); setShowForm(false);
             <p style={s.sectionLabel}>💜 About</p>
             <div style={s.settingsCard}>
               <p style={s.aboutTitle}>MediTrack</p>
-              <p style={s.aboutSub}>Made with love for Ambika 💊✨</p>
+              <p style={s.fieldLabel} style={{marginBottom:6}}>Your name</p>
+              <input style={{...s.input, marginBottom:8}} placeholder="Enter your name" value={userName}
+                onChange={e => { setUserName(e.target.value); localStorage.setItem("medi_name", e.target.value); }}/>
+              <p style={s.aboutSub}>Made with love 💊✨</p>
               <p style={s.aboutSub}>All data is stored privately on this device.</p>
             </div>
           </div>
@@ -674,14 +632,13 @@ const styles = {
   cancelBtn:{background:"#f3f4f6",color:"#555",border:"none",borderRadius:10,padding:"12px 16px",fontSize:14,cursor:"pointer"},
   deleteFullBtn:{background:"none",border:"1.5px solid #FCA5A5",borderRadius:10,padding:"10px",fontSize:13,color:"#EF4444",cursor:"pointer",fontWeight:500},
   medCard:{background:"#fff",borderRadius:14,margin:"0 16px 10px",boxShadow:"0 2px 10px rgba(124,58,237,0.08)"},
-  medCardTop:{display:"flex",alignItems:"flex-start",gap:10,padding:"14px 14px 10px"},
-  medCardBottom:{display:"flex",justifyContent:"space-between",padding:"10px 14px 14px",borderTop:"1px solid #FAF5FF"},
+  medCardTop:{display:"flex",alignItems:"flex-start",gap:10,padding:"14px"},
   medIcon:{width:38,height:38,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0},
   medName:{fontSize:15,fontWeight:600,color:"#1a1a1a",margin:"0 0 2px"},
   medDetails:{fontSize:12,color:"#9CA3AF",margin:0},
   pillCount:{fontSize:11,color:"#A78BFA"},
   editBtn:{background:"none",borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer",border:"1.5px solid"},
-  histHero:{background:"linear-gradient(135deg,#7C3AED 0%,#DB2777 100%)",padding:"36px 20px 32px",textAlign:"center",position:"relative",overflow:"hidden"},
+  histHero:{background:"linear-gradient(135deg,#7C3AED 0%,#DB2877 100%)",padding:"36px 20px 32px",textAlign:"center",position:"relative",overflow:"hidden"},
   histHeroGlow:{position:"absolute",top:-60,left:"50%",transform:"translateX(-50%)",width:250,height:250,borderRadius:"50%",background:"rgba(255,255,255,0.1)"},
   histStreakNum:{fontSize:64,fontWeight:800,color:"#fff",margin:0,lineHeight:1},
   histStreakEmoji:{fontSize:32,margin:"4px 0"},
@@ -700,14 +657,14 @@ const styles = {
   pctBadge:{padding:"4px 10px",borderRadius:20,fontSize:13,fontWeight:700},
   barBg:{height:6,background:"#EDE9FE",borderRadius:99},
   barFill:{height:6,borderRadius:99,transition:"width 0.5s"},
-  settingsHero:{background:"linear-gradient(135deg,#7C3AED 0%,#DB2777 100%)",padding:"36px 20px 28px",position:"relative",overflow:"hidden"},
+  settingsHero:{background:"linear-gradient(135deg,#7C3AED 0%,#DB2877 100%)",padding:"36px 20px 28px",position:"relative",overflow:"hidden"},
   settingsCard:{background:"#fff",borderRadius:14,margin:"0 16px 12px",padding:16,boxShadow:"0 2px 10px rgba(124,58,237,0.08)"},
   settingsCardTitle:{fontSize:15,fontWeight:600,color:"#1a1a1a",margin:"0 0 4px"},
   settingsCardBody:{fontSize:13,color:"#6B7280",margin:"0 0 12px"},
   notifCard:{display:"flex",gap:14,alignItems:"flex-start",border:"1.5px solid",borderRadius:12,padding:14},
   notifCardTitle:{fontSize:15,fontWeight:700,color:"#1a1a1a",margin:"0 0 4px"},
   notifCardBody:{fontSize:13,color:"#6B7280",margin:"0 0 12px",lineHeight:1.5},
-  enableBtn:{background:"linear-gradient(135deg,#7C3AED,#DB2777)",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"0 3px 10px rgba(124,58,237,0.3)"},
+  enableBtn:{background:"linear-gradient(135deg,#7C3AED,#DB2877)",color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontSize:14,fontWeight:600,cursor:"pointer",boxShadow:"0 3px 10px rgba(124,58,237,0.3)"},
   testBtn:{background:"#EDE9FE",color:"#7C3AED",border:"none",borderRadius:10,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer"},
   leadRow:{display:"flex",flexWrap:"wrap",gap:8},
   leadBtn:{padding:"8px 14px",border:"1.5px solid #ede9fe",borderRadius:10,background:"#FAF5FF",fontSize:12,color:"#555",cursor:"pointer",fontFamily:"system-ui,sans-serif"},
@@ -718,7 +675,7 @@ const styles = {
   howLabel:{fontSize:12,fontWeight:600,color:"#1a1a1a",margin:"0 0 2px"},
   howSub:{fontSize:10,color:"#9CA3AF",margin:0,lineHeight:1.4},
   howArrow:{fontSize:16,color:"#C4B5FD",paddingTop:12},
-  aboutTitle:{fontSize:18,fontWeight:700,color:"#7C3AED",margin:"0 0 4px"},
+  aboutTitle:{fontSize:18,fontWeight:700,color:"#7C3AED",margin:"0 0 8px"},
   aboutSub:{fontSize:13,color:"#9CA3AF",margin:"0 0 4px"},
   tabBar:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,height:68,background:"#fff",borderTop:"1px solid #ede9fe",display:"flex",boxShadow:"0 -4px 20px rgba(124,58,237,0.1)"},
   tabBtn:{flex:1,border:"none",background:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,fontFamily:"system-ui,sans-serif",position:"relative"},
