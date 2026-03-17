@@ -19,10 +19,12 @@ module.exports = async function handler(req, res) {
     const subscription = JSON.parse(subData.result);
     const medicines = typeof medsData.result === "string" ? JSON.parse(medsData.result) : medsData.result;
 const medsArray = Array.isArray(medicines) ? medicines : JSON.parse(medicines);
-    const now = new Date();
-    const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    const dow = now.getDay();
-
+const now = new Date();
+// Pacific Time (UTC-8 standard, UTC-7 daylight saving)
+const ptOffset = -7 * 60 * 60 * 1000; // UTC-7 (daylight saving, adjust to -8 in winter)
+const ptTime = new Date(now.getTime() + ptOffset);
+const hhmm = `${String(ptTime.getUTCHours()).padStart(2,"0")}:${String(ptTime.getUTCMinutes()).padStart(2,"0")}`;
+const dow = ptTime.getUTCDay();
    const due = medsArray.filter(med => {
   const scheduledToday =
     med.frequency === "daily" ||
