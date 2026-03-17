@@ -59,7 +59,12 @@ module.exports = async function handler(req, res) {
       );
     }
 
-    res.status(200).json({ sent: due.length, time: hhmm, checked: medicines.length + " medicines" });
+   res.status(200).json({ 
+      sent: due.length, 
+      time: hhmm, 
+      checked: medicines.length + " medicines",
+      medicineTimes: medicines.map(m => ({ name: m.name, times: m.times }))
+    });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
