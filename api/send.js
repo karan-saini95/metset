@@ -23,14 +23,13 @@ const medsArray = Array.isArray(medicines) ? medicines : JSON.parse(medicines);
     const hhmm = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
     const dow = now.getDay();
 
-    const due = medicines.filter(med => {
-      const scheduledToday =
-        med.frequency === "daily" ||
-        (med.frequency === "weekly" && med.weekDay === dow) ||
-        (med.frequency === "biweekly" && med.weekDay === dow);
-      return scheduledToday && med.times.includes(hhmm);
-    });
-
+   const due = medsArray.filter(med => {
+  const scheduledToday =
+    med.frequency === "daily" ||
+    (med.frequency === "weekly" && med.weekDay === dow) ||
+    (med.frequency === "biweekly" && med.weekDay === dow);
+  return scheduledToday && med.times.includes(hhmm);
+});
     const webpush = require("web-push");
     webpush.setVapidDetails(
       process.env.VAPID_SUBJECT,
