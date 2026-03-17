@@ -301,7 +301,7 @@ export default function App() {
   <span style={{fontSize:28}}>✅</span>
   <div style={{flex:1}}>
     <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
-    <p style={s.notifCardBody}>Ambika will get a push notification for every dose — even when the phone is locked. 🎉</p>
+   <p style={s.notifCardBody}>Ambika will get a push notification for every dose - even when the phone is locked. 🎉</p>
     <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
     <button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
       onClick={async () => {
