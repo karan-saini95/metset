@@ -141,7 +141,13 @@ export default function App() {
   }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_medicines", JSON.stringify(medicines)); }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_logs", JSON.stringify(logs)); }, [logs]);
-
+useEffect(() => {
+  fetch("/api/update", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ medicines })
+  });
+}, [medicines]);
 useEffect(() => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js")
@@ -208,12 +214,7 @@ useEffect(() => {
       }
       setForm(emptyForm); setShowForm(false);
 
-      // Sync to server using freshly computed list
-      fetch("/api/update", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ medicines: updatedMedicinesList })
-      });
+      
     }  function cancelForm() { setForm(emptyForm); setEditingId(null); setShowForm(false); }
   function deleteMedicine(id) {
     setMedicines(medicines.filter(m=>m.id!==id));
