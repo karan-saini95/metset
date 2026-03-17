@@ -312,24 +312,29 @@ useEffect(() => {
     <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
     <button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
       onClick={async () => {
-        try {
-          alert("Step 1: checking service worker...");
-          const reg = await navigator.serviceWorker.ready;
-          alert("Step 2: getting subscription...");
-          const sub = await reg.pushManager.getSubscription();
-          if (!sub) { alert("No subscription found - try re-enabling notifications"); return; }
-          alert("Step 3: sending to server...");
-          const res = await fetch("/api/save", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ subscription: sub.toJSON(), medicines })
-          });
-          alert("Step 4: response status " + res.status);
-          const data = await res.json();
-          alert("Done: " + JSON.stringify(data));
-        } catch(e) {
-          alert("Error: " + e.message);
-        }
+<button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
+  onClick={async () => {
+    try {
+      alert("Step 1: registering SW...");
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      alert("Step 2: getting subscription...");
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) { alert("No subscription - need to re-enable notifications"); return; }
+      alert("Step 3: sending to server...");
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
+      });
+      alert("Step 4: status " + res.status);
+      const data = await res.json();
+      alert("Done: " + JSON.stringify(data));
+    } catch(e) {
+      alert("Error: " + e.message);
+    }
+  }}>
+  Sync subscription to server
+</button>
       }}>
       Sync subscription to server
     </button>
