@@ -302,9 +302,27 @@ export default function App() {
         <div style={{flex:1}}>
           <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
           <p style={s.notifCardBody}>Ambika will get a push notification for every dose — even when the phone is locked. 🎉</p>
-          <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
-        </div>
-      </div>
+        <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
+<button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
+  onClick={async () => {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      const res = await fetch("/api/save", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
+      });
+      const data = await res.json();
+      alert(JSON.stringify(data));
+    } else {
+      alert("No subscription found");
+    }
+  }}>
+  Sync subscription to server
+</button>
+</div>
+</div>
     );
     return (
       <div style={{...s.notifCard, borderColor:"#C4B5FD", background:"#FAF5FF"}}>
