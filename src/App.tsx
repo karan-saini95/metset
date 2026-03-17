@@ -297,31 +297,37 @@ export default function App() {
       </div>
     );
     if (notifStatus === "granted") return (
-      <div style={{...s.notifCard, borderColor:"#6EE7B7", background:"#F0FDF4"}}>
-        <span style={{fontSize:28}}>✅</span>
-        <div style={{flex:1}}>
-          <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
-          <p style={s.notifCardBody}>Ambika will get a push notification for every dose — even when the phone is locked. 🎉</p>
-        <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
-<button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
-  onClick={async () => {
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) {
-      const res = await fetch("/api/save", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ subscription: sub.toJSON(), medicines })
-      });
-      const data = await res.json();
-      alert(JSON.stringify(data));
-    } else {
-      alert("No subscription found");
-    }
-  }}>
-  Sync subscription to server
-</button>
-</div>
+ <div style={{...s.notifCard, borderColor:"#6EE7B7", background:"#F0FDF4"}}>
+  <span style={{fontSize:28}}>✅</span>
+  <div style={{flex:1}}>
+    <p style={{...s.notifCardTitle, color:"#065F46"}}>Notifications active!</p>
+    <p style={s.notifCardBody}>Ambika will get a push notification for every dose — even when the phone is locked. 🎉</p>
+    <button style={s.testBtn} onClick={handleTestNotif}>{notifTestSent ? "✓ Sent!" : "Send a test notification"}</button>
+    <button style={{...s.testBtn, marginTop:8, background:"#FEF3C7", color:"#92400E"}} 
+      onClick={async () => {
+        try {
+          alert("Step 1: checking service worker...");
+          const reg = await navigator.serviceWorker.ready;
+          alert("Step 2: getting subscription...");
+          const sub = await reg.pushManager.getSubscription();
+          if (!sub) { alert("No subscription found - try re-enabling notifications"); return; }
+          alert("Step 3: sending to server...");
+          const res = await fetch("/api/save", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ subscription: sub.toJSON(), medicines })
+          });
+          alert("Step 4: response status " + res.status);
+          const data = await res.json();
+          alert("Done: " + JSON.stringify(data));
+        } catch(e) {
+          alert("Error: " + e.message);
+        }
+      }}>
+      Sync subscription to server
+    </button>
+  </div>
+</div></div>
 </div>
     );
     return (
