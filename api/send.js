@@ -1,4 +1,4 @@
-// send-v1
+// send-v2
 module.exports = async function handler(req, res) {
   try {
     const url = process.env.KV_REST_API_URL;
@@ -16,22 +16,32 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ skipped: "no data" });
     }
 
-    const subscription = JSON.parse(subData.result);
-    const medicines = typeof medsData.result === "string" ? JSON.parse(medsData.result) : medsData.result;
-const medsArray = Array.isArray(medicines) ? medicines : JSON.parse(medicines);
-const now = new Date();
-// Pacific Time (UTC-8 standard, UTC-7 daylight saving)
-const ptOffset = -7 * 60 * 60 * 1000; // UTC-7 (daylight saving, adjust to -8 in winter)
-const ptTime = new Date(now.getTime() + ptOffset);
-const hhmm = `${String(ptTime.getUTCHours()).padStart(2,"0")}:${String(ptTime.getUTCMinutes()).padStart(2,"0")}`;
-const dow = ptTime.getUTCDay();
-   const due = medsArray.filter(med => {
-  const scheduledToday =
-    med.frequency === "daily" ||
-    (med.frequency === "weekly" && med.weekDay === dow) ||
-    (med.frequency === "biweekly" && med.weekDay === dow);
-  return scheduledToday && med.times.includes(hhmm);
-});
+    // Parse subscription - handle double stringification
+    let subscription = subData.result;
+    if (typeof subscription === "string") subscription = JSON.parse(subscription);
+    if (typeof subscription === "string") subscription = JSON.parse(subscription);
+
+    // Parse medicines - handle double stringification
+    let medicines = medsData.result;
+    if (typeof medicines === "string") medicines = JSON.parse(medicines);
+    if (typeof medicines === "string") medicines = JSON.parse(medicines);
+    if (!Array.isArray(medicines)) medicines = JSON.parse(medicines);
+
+    // Pacific Time (UTC-7 daylight saving, change to -8 in winter)
+    const now = new Date();
+    const ptOffset = -7 * 60 * 60 * 1000;
+    const ptTime = new Date(now.getTime() + ptOffset);
+    const hhmm = `${String(ptTime.getUTCHours()).padStart(2,"0")}:${String(ptTime.getUTCMinutes()).padStart(2,"0")}`;
+    const dow = ptTime.getUTCDay();
+
+    const due = medicines.filter(med => {
+      const scheduledToday =
+        med.frequency === "daily" ||
+        (med.frequency === "weekly" && med.weekDay === dow) ||
+        (med.frequency === "biweekly" && med.weekDay === dow);
+      return scheduledToday && med.times.includes(hhmm);
+    });
+
     const webpush = require("web-push");
     webpush.setVapidDetails(
       process.env.VAPID_SUBJECT,
@@ -49,7 +59,7 @@ const dow = ptTime.getUTCDay();
       );
     }
 
-    res.status(200).json({ sent: due.length, time: hhmm });
+    res.status(200).json({ sent: due.length, time: hhmm, checked: medicines.length + " medicines" });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
