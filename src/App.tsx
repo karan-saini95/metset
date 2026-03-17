@@ -142,6 +142,13 @@ export default function App() {
   useEffect(() => { localStorage.setItem("medi_medicines", JSON.stringify(medicines)); }, [medicines]);
   useEffect(() => { localStorage.setItem("medi_logs", JSON.stringify(logs)); }, [logs]);
 
+useEffect(() => {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js")
+      .then(reg => console.log("SW registered", reg))
+      .catch(err => console.log("SW failed", err));
+  }
+}, []);
   const today = getToday();
   const todayLogs = logs
     .filter(l => l.scheduledAt.startsWith(today))
